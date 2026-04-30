@@ -1,0 +1,62 @@
+# Dependencies and builds
+node_modules/
+dist/
+.vite/
+
+# Logs and environment
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.env
+.env.*
+
+# Private Instagram exports and extracted data
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.rar
+instagram-*/
+your_instagram_activity/
+media/
+messages/
+
+# Private media and data files that often come from exports
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.heic
+*.bmp
+*.mp4
+*.mov
+*.m4v
+*.3gp
+*.webm
+*.opus
+*.ogg
+*.mp3
+*.m4a
+*.aac
+*.wav
+*.amr
+*.json
+*.txt
+*.csv
+*.vcf
+
+# Keep project config source files tracked even though JSON is ignored above
+!package.json
+!package-lock.json
+!tsconfig.json
+!vite.config.ts
+!src/**/*.ts
+!src/**/*.tsx
+!src/**/*.css
+!README.md
+!index.html
+!.gitattributes
+!.gitignore
