@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseInstagramBackup, revokeBackupUrls } from "./parser";
 import type { Attachment, ChatMessage, MessageFilter, ParsedBackup, ParsedThread } from "./types";
 
@@ -28,6 +28,8 @@ type ThreadStats = {
   reactionCount: number;
 };
 
+type AuthMode = "login" | "register";
+
 const filters: Array<{ id: MessageFilter; label: string }> = [
   { id: "all", label: "All" },
   { id: "text", label: "Text" },
@@ -39,6 +41,10 @@ const filters: Array<{ id: MessageFilter; label: string }> = [
 ];
 
 const maxResponseGapMs = 16 * 60 * 60 * 1000;
+const maxAuthAttempts = 5;
+const authLockoutMs = 60 * 1000;
+const maxAuthSubmissions = 5;
+const authRateLimitWindowMs = 60 * 1000;
 
 function App() {
   const [backup, setBackup] = useState<ParsedBackup | null>(null);
@@ -50,11 +56,66 @@ function App() {
   const [filter, setFilter] = useState<MessageFilter>("all");
   const [isParsing, setIsParsing] = useState(false);
   const [error, setError] = useState("");
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authDisplayName, setAuthDisplayName] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [accountActionError, setAccountActionError] = useState("");
+  const [authFailures, setAuthFailures] = useState(0);
+  const [authLockedUntil, setAuthLockedUntil] = useState<number | null>(null);
+  const [authRateLimitedUntil, setAuthRateLimitedUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previousBackup = useRef<ParsedBackup | null>(null);
+  const authSubmissionTimes = useRef<number[]>([]);
+
+  const isAuthLocked = Boolean(authLockedUntil && authLockedUntil > now);
+  const isAuthRateLimited = Boolean(authRateLimitedUntil && authRateLimitedUntil > now);
+  const isAuthBlocked = isAuthLocked || isAuthRateLimited;
+  const lockoutSeconds = authLockedUntil ? Math.max(0, Math.ceil((authLockedUntil - now) / 1000)) : 0;
+  const rateLimitSeconds = authRateLimitedUntil ? Math.max(0, Math.ceil((authRateLimitedUntil - now) / 1000)) : 0;
+  const authBlockSeconds = Math.max(lockoutSeconds, rateLimitSeconds);
+  const authBlockMessage = isAuthLocked
+    ? `Too many failed attempts. Try again in ${lockoutSeconds} seconds.`
+    : isAuthRateLimited
+      ? `Too many login attempts. Try again in ${rateLimitSeconds} seconds.`
+      : "";
 
   useEffect(() => {
     return () => revokeBackupUrls(previousBackup.current);
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+      if (!isMounted) return;
+      setAuthUser(data.user);
+      setIsAuthReady(true);
+    });
+
+    const {
+      data: { subscription },
+      setAuthUser(session?.user ?? null);
+      setIsAuthReady(true);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthBlocked) return;
+
+    const intervalId = window.setInterval(() => setNow(Date.now()), 500);
+    return () => window.clearInterval(intervalId);
+  }, [isAuthBlocked]);
 
   useEffect(() => {
     previousBackup.current = backup;
@@ -95,6 +156,18 @@ function App() {
   const threadStats = useMemo(() => (selectedThread ? getThreadStats(selectedThread) : null), [selectedThread]);
   const importedAt = backup?.importedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) ?? "9:41";
 
+  function handleUploadClick() {
+    setError("");
+
+    if (!authUser) {
+      setAuthError("");
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    fileInputRef.current?.click();
+  }
+
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -120,6 +193,109 @@ function App() {
     }
   }
 
+  async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (isAuthBlocked) {
+      setAuthError(authBlockMessage);
+      return;
+    }
+
+    const email = normalizeEmail(authEmail);
+    const displayName = authDisplayName.trim();
+    const validationError = validateCredentials(email, authPassword, authMode === "register" ? displayName : undefined);
+    if (validationError) {
+      setAuthError(validationError);
+      return;
+    }
+
+    const rateLimitError = registerAuthSubmission();
+    if (rateLimitError) {
+      setAuthError(rateLimitError);
+      return;
+    }
+
+    setIsAuthenticating(true);
+    setAuthError("");
+
+    try {
+      const result =
+        authMode === "login"
+              email,
+              password: authPassword,
+              options: { data: { display_name: displayName, username: displayName } },
+            });
+
+      if (result.error) {
+        if (shouldCountAuthFailure(result.error, authMode)) {
+          registerAuthFailure();
+        }
+
+        setAuthError(getAuthErrorMessage(result.error, authMode));
+        return;
+      }
+
+      setAuthFailures(0);
+      setAuthLockedUntil(null);
+      setAuthPassword("");
+      setIsAuthModalOpen(false);
+
+      if (authMode === "register" && !result.data.session) {
+        setAuthError("Check your email to confirm your account before signing in.");
+        setAuthMode("login");
+        setIsAuthModalOpen(true);
+        return;
+      }
+
+      window.setTimeout(() => fileInputRef.current?.click(), 0);
+    } catch {
+    } finally {
+      setIsAuthenticating(false);
+    }
+  }
+
+  async function handleLogout() {
+    setAuthUser(null);
+  }
+
+  async function handleChangeAccount() {
+    setAuthUser(null);
+    setAuthEmail("");
+    setAuthPassword("");
+    setAuthDisplayName("");
+    setAuthMode("login");
+    setAuthError("");
+    setAccountActionError("");
+    setIsAuthModalOpen(true);
+  }
+
+  function registerAuthSubmission(): string {
+    const timestamp = Date.now();
+    const windowStart = timestamp - authRateLimitWindowMs;
+    authSubmissionTimes.current = authSubmissionTimes.current.filter((attemptedAt) => attemptedAt > windowStart);
+
+    if (authSubmissionTimes.current.length >= maxAuthSubmissions) {
+      const retryAt = authSubmissionTimes.current[0] + authRateLimitWindowMs;
+      setAuthRateLimitedUntil(retryAt);
+      setNow(timestamp);
+      return `Too many login attempts. Try again in ${Math.ceil((retryAt - timestamp) / 1000)} seconds.`;
+    }
+
+    authSubmissionTimes.current.push(timestamp);
+    return "";
+  }
+
+  function registerAuthFailure() {
+    const nextFailures = authFailures + 1;
+    setAuthFailures(nextFailures);
+
+    if (nextFailures >= maxAuthAttempts) {
+      setAuthLockedUntil(Date.now() + authLockoutMs);
+      setNow(Date.now());
+      setAuthFailures(0);
+    }
+  }
+
   return (
     <>
       <MobileDisabled />
@@ -130,13 +306,19 @@ function App() {
           <h1>Instagram Chat Backup Manager</h1>
         </div>
 
-        <label className="file-drop">
-          <input type="file" accept=".zip,application/zip" onChange={handleFileChange} />
+        <input
+          ref={fileInputRef}
+          className="hidden-file-input"
+          type="file"
+          accept=".zip,application/zip"
+          onChange={handleFileChange}
+        />
+        <button className="file-drop" type="button" onClick={handleUploadClick} disabled={!isAuthReady || isParsing}>
           <span className="file-icon" aria-hidden="true">
             +
           </span>
           <span>{isParsing ? "Reading Instagram ZIP locally..." : "Choose Instagram export ZIP"}</span>
-        </label>
+        </button>
 
         {error ? <p className="error-message">{error}</p> : null}
 
@@ -172,18 +354,58 @@ function App() {
           </>
         ) : (
           <div className="privacy-note">
-            <strong>No upload, no cloud processing.</strong>
-            <span>The ZIP is read by your browser on this device. Messages and media stay in memory only.</span>
+            <strong>Login required, chat stays local.</strong>
+            <span>
+              messages and media are kept in memory only.
+            </span>
           </div>
         )}
 
-        <a
-          className="issue-link"
-          href="https://github.com/marfeyx/instagraminterpreter.marfeyx.ch/issues?subject=Instagram%20Chat%20Backup%20Manager%20Issue"
-        >
-          <span>Report issues</span>
-          <strong>GitHub issue tracker</strong>
-        </a>
+        <footer className="site-footer">
+          <div className="footer-links">
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="https://github.com/marfeyx/instagraminterpreter.marfeyx.ch/issues?subject=Instagram%20Chat%20Backup%20Manager%20Issue">
+              Report issues
+            </a>
+          </div>
+
+          <div className="footer-account" aria-label="Account state">
+            <span>{authUser ? `Signed in as ${getDisplayUsername(authUser)}` : "Not signed in"}</span>
+            <div className="footer-account-actions">
+              {authUser ? (
+                <>
+                  <button type="button" onClick={handleLogout}>
+                    Sign out
+                  </button>
+                  <button type="button" onClick={handleChangeAccount}>
+                    Change account
+                  </button>
+                  <a
+                    className="footer-account-button danger"
+                    href={`https://github.com/marfeyx/instagraminterpreter.marfeyx.ch/issues?subject=Delete%20account%20request&body=${encodeURIComponent(
+                      `Please delete my Instagram Chat Backup Manager account.\n\nAccount: ${authUser.email ?? getDisplayUsername(authUser)}`,
+                    )}`}
+                  >
+                    Delete account request
+                  </a>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMode("login");
+                    setAuthError("");
+                    setAccountActionError("");
+                    setIsAuthModalOpen(true);
+                  }}
+                >
+                  Login
+                </button>
+              )}
+            </div>
+            {accountActionError ? <p className="footer-account-error">{accountActionError}</p> : null}
+          </div>
+        </footer>
       </section>
 
       <section className="phone-stage" aria-label="Instagram-style chat preview">
@@ -257,7 +479,145 @@ function App() {
         />
       </aside>
       </main>
+      {isAuthModalOpen ? (
+        <AuthModal
+          mode={authMode}
+          email={authEmail}
+          password={authPassword}
+          displayName={authDisplayName}
+          error={authError}
+          isSubmitting={isAuthenticating}
+          isLocked={isAuthBlocked}
+          lockoutSeconds={authBlockSeconds}
+          lockedMessage={authBlockMessage}
+          onModeChange={(mode) => {
+            setAuthMode(mode);
+            setAuthError("");
+          }}
+          onEmailChange={setAuthEmail}
+          onPasswordChange={setAuthPassword}
+          onDisplayNameChange={setAuthDisplayName}
+          onClose={() => {
+            if (!isAuthenticating) setIsAuthModalOpen(false);
+          }}
+          onSubmit={handleAuthSubmit}
+        />
+      ) : null}
     </>
+  );
+}
+
+function AuthModal({
+  mode,
+  email,
+  password,
+  displayName,
+  error,
+  isSubmitting,
+  isLocked,
+  lockoutSeconds,
+  lockedMessage,
+  onModeChange,
+  onEmailChange,
+  onPasswordChange,
+  onDisplayNameChange,
+  onClose,
+  onSubmit,
+}: {
+  mode: AuthMode;
+  email: string;
+  password: string;
+  displayName: string;
+  error: string;
+  isSubmitting: boolean;
+  isLocked: boolean;
+  lockoutSeconds: number;
+  lockedMessage: string;
+  onModeChange: (mode: AuthMode) => void;
+  onEmailChange: (value: string) => void;
+  onPasswordChange: (value: string) => void;
+  onDisplayNameChange: (value: string) => void;
+  onClose: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  const title = mode === "login" ? "Login to upload" : "Create account";
+  const submitText = mode === "login" ? "Login" : "Register";
+
+  return (
+    <div className="auth-backdrop" role="presentation">
+      <form className="auth-modal" onSubmit={onSubmit} aria-label={title}>
+        <div className="auth-modal-header">
+          <div>
+            <p className="eyebrow">Account required</p>
+            <h2>{title}</h2>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Close login popup" disabled={isSubmitting}>
+            x
+          </button>
+        </div>
+
+        <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
+          <button type="button" className={mode === "login" ? "active" : ""} onClick={() => onModeChange("login")}>
+            Login
+          </button>
+          <button
+            type="button"
+            className={mode === "register" ? "active" : ""}
+            onClick={() => onModeChange("register")}
+          >
+            Register
+          </button>
+        </div>
+
+        <label className="field">
+          <span>Email</span>
+          <input
+            autoFocus
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => onEmailChange(event.target.value)}
+            placeholder="you@example.com"
+          />
+        </label>
+
+        {mode === "register" ? (
+          <label className="field">
+            <span>Display name</span>
+            <input
+              type="text"
+              autoComplete="name"
+              value={displayName}
+              onChange={(event) => onDisplayNameChange(event.target.value)}
+              placeholder="Your display name"
+              minLength={2}
+              maxLength={40}
+            />
+          </label>
+        ) : null}
+
+        <label className="field">
+          <span>Password</span>
+          <input
+            type="password"
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
+            value={password}
+            onChange={(event) => onPasswordChange(event.target.value)}
+            placeholder="At least 8 characters"
+          />
+        </label>
+
+        {error ? <p className="error-message">{error}</p> : null}
+        {isLocked ? <p className="auth-hint">{lockedMessage || `Try again in ${lockoutSeconds} seconds.`}</p> : null}
+
+        <button className="auth-submit" type="submit" disabled={isSubmitting || isLocked}>
+          {isSubmitting ? "Checking..." : submitText}
+        </button>
+
+        <p className="auth-hint">
+        </p>
+      </form>
+    </div>
   );
 }
 
@@ -708,6 +1068,111 @@ function formatDuration(milliseconds: number | null): string {
   if (minutes > 0) return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
   if (seconds > 0) return `${seconds}s`;
   return "0m";
+}
+
+function getAuthErrorMessage(error: AuthError, mode: AuthMode): string {
+  const code = getAuthErrorCode(error);
+  const message = error.message.toLowerCase();
+
+  if (code === "invalid_credentials" || message.includes("invalid login credentials")) {
+    return "The email or password is incorrect.";
+  }
+
+  if (code === "email_not_confirmed" || message.includes("email not confirmed")) {
+    return "Confirm your email address before signing in.";
+  }
+
+  if (code === "user_already_exists" || message.includes("already registered") || message.includes("already exists")) {
+    return "An account already exists for this email. Login instead.";
+  }
+
+  if (code === "weak_password" || message.includes("weak password")) {
+    return "Use a stronger password.";
+  }
+
+  if (code === "signup_disabled" || message.includes("signups not allowed") || message.includes("signup disabled")) {
+    return "New account registration is currently disabled.";
+  }
+
+  if (code === "email_address_invalid" || message.includes("invalid email")) {
+    return "Enter a valid email address.";
+  }
+
+  if (code === "over_email_send_rate_limit") {
+    return "Too many confirmation emails were requested. Wait a moment and try again.";
+  }
+
+  if (code === "over_request_rate_limit" || error.status === 429) {
+    return "Too many requests. Wait a moment and try again.";
+  }
+
+  if (code === "user_banned") {
+    return "This account is disabled. Contact support if this seems wrong.";
+  }
+
+  if (error.status && error.status >= 500) {
+  }
+
+  return mode === "login" ? "Login failed. Check your email and password." : "Registration failed. Check your details.";
+}
+
+function shouldCountAuthFailure(error: AuthError, mode: AuthMode): boolean {
+  if (mode !== "login") return false;
+
+  const code = getAuthErrorCode(error);
+  const message = error.message.toLowerCase();
+  return code === "invalid_credentials" || message.includes("invalid login credentials");
+}
+
+function getAuthErrorCode(error: AuthError): string {
+  const code = "code" in error ? error.code : undefined;
+  return typeof code === "string" ? code : "";
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function validateCredentials(email: string, password: string, displayName?: string): string {
+  if (!/^[\w.-]+@[\w.-]+\.[A-Za-z]{2,}$/.test(email)) {
+    return "Enter a valid email address.";
+  }
+
+  if (displayName !== undefined) {
+    if (!displayName) {
+      return "Enter a display name.";
+    }
+
+    if (!/^[\p{L}\p{N}][\p{L}\p{N} ._-]{1,39}$/u.test(displayName)) {
+      return "Use a display name with 2-40 letters, numbers, spaces, dots, underscores, or hyphens.";
+    }
+  }
+
+  if (password.length < 8) {
+    return "Use a password with at least 8 characters.";
+  }
+
+  return "";
+}
+
+function getEmailUsername(email: string): string {
+  return email.split("@")[0] || "user";
+}
+
+function getDisplayUsername(user: User | null): string {
+  if (!user) return "";
+
+  const metadataDisplayName = user.user_metadata?.display_name;
+  if (typeof metadataDisplayName === "string" && metadataDisplayName.trim()) {
+    return metadataDisplayName.trim();
+  }
+
+  const metadataUsername = user.user_metadata?.username;
+  if (typeof metadataUsername === "string" && metadataUsername.trim()) {
+    return metadataUsername.trim();
+  }
+
+  return user.email?.split("@")[0] ?? "user";
 }
 
 export default App;
