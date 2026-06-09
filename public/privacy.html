@@ -158,24 +158,10 @@
         </section>
 
         <section>
-          <h2>Login and Account Data</h2>
-          <p>
-            password hash, session metadata, timestamps, and optional user metadata such as a display username derived
-            from your email address.
-          </p>
-        </section>
-
-        <section>
-          <p>
-            role keys, database passwords, admin tokens, private API keys, and direct database connection strings must
-            stay server-side and are not included in frontend code.
-          </p>
-        </section>
-
-        <section>
           <h2>Storage and Uploads</h2>
           <p>
             Instagram ZIP files are parsed locally. This version does not store Instagram exports or uploaded media in
+            server storage. If storage is added later, this policy should be updated before launch to describe what is
             stored, why it is stored, and how deletion works.
           </p>
         </section>
@@ -183,18 +169,16 @@
         <section>
           <h2>Purpose of Processing</h2>
           <ul>
-            <li>Authenticate users before they open the local chat viewer.</li>
             <li>Render Instagram exports in a readable interface on the user's device.</li>
             <li>Calculate local chat statistics, search results, and filtering results.</li>
-            <li>Maintain account sessions and support account deletion requests.</li>
-          </ul>
+            </ul>
         </section>
 
         <section>
           <h2>Retention</h2>
           <p>
             Locally parsed chat data remains in browser memory during the active session and is cleared when the page is
-            deletion or an administrator removes it according to the project's operational needs.
+            refreshed, closed, or a new file replaces it.
           </p>
         </section>
 
@@ -202,7 +186,7 @@
           <h2>User Rights</h2>
           <p>
             Depending on your location, you may have rights to access, correct, export, restrict, object to, or delete
-            personal data. You can send an account deletion request from the app footer. For other requests, contact the
+            personal data. For requests, contact the
             site operator.
           </p>
         </section>
