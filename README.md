@@ -32,6 +32,8 @@ A local-only static web app for viewing Instagram information backup ZIP files. 
 - The app does not save imported backup data to browser storage.
 - Refreshing or closing the page clears the loaded backup from memory.
 - Media previews use temporary local browser object URLs.
+- Archive size, entry count, expanded data, messages, reactions, and media are bounded before materialization to keep
+  malformed or hostile ZIP files from exhausting browser resources.
 
 After dependencies are installed, the app itself can be used without internet access.
 
@@ -60,6 +62,9 @@ git status --short --ignored
 ```
 
 Do not commit personal Instagram exports, extracted backup folders, private media, screenshots, or generated files containing message content.
+
+Security issues should be reported through the private process described in [SECURITY.md](SECURITY.md). Never attach a
+real Instagram export or message content to a public issue.
 
 ## Requirements
 
@@ -145,6 +150,7 @@ Supported:
 - Instagram information export ZIPs containing JSON message files.
 - Inbox, archived, filtered, and message-request thread folders.
 - Exports with or without media.
+- Archives within the documented in-app safety limits. Larger exports should be split before importing.
 
 Not supported:
 

@@ -144,6 +144,7 @@ function App() {
           className="hidden-file-input"
           type="file"
           accept=".zip,application/zip"
+          disabled={isParsing}
           onChange={handleFileChange}
         />
         <button className="file-drop" type="button" onClick={handleUploadClick} disabled={isParsing}>
@@ -197,7 +198,7 @@ function App() {
         <footer className="site-footer">
           <div className="footer-links">
             <a href="privacy.html">Privacy Policy</a>
-            <a href="https://github.com/marfeyx/instagraminterpreter.marfeyx.ch/issues?subject=Instagram%20Chat%20Backup%20Manager%20Issue">
+            <a href="https://github.com/marfeyx/instagraminterpreter.marfeyx.ch/issues">
               Report issues
             </a>
           </div>

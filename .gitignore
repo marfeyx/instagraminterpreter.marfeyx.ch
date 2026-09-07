@@ -47,6 +47,14 @@ messages/
 *.txt
 *.csv
 *.vcf
+*.html
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
 
 # Keep project config source files tracked even though JSON is ignored above
 !package.json
@@ -58,5 +66,7 @@ messages/
 !src/**/*.css
 !README.md
 !index.html
+!public/privacy.html
 !.gitattributes
 !.gitignore
+!SECURITY.md
