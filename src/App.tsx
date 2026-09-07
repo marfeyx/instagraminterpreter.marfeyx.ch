@@ -1,3 +1,17 @@
+import { Avatar as HeroAvatar, Button, Card, Chip, Meter, SearchField } from "@heroui/react";
+import {
+  CalendarDays,
+  ExternalLink,
+  FileArchive,
+  FileText,
+  LockKeyhole,
+  MessageCircleMore,
+  MoreHorizontal,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Upload,
+} from "lucide-react";
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 import { parseInstagramBackup, revokeBackupUrls } from "./parser";
 import type { Attachment, ChatMessage, MessageFilter, ParsedBackup, ParsedThread } from "./types";
@@ -57,7 +71,7 @@ function App() {
     return () => revokeBackupUrls(previousBackup.current);
   }, []);
 
-      useEffect(() => {
+  useEffect(() => {
     previousBackup.current = backup;
   }, [backup]);
 
@@ -98,8 +112,7 @@ function App() {
 
   function handleUploadClick() {
     setError("");
-
-        fileInputRef.current?.click();
+    fileInputRef.current?.click();
   }
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -134,9 +147,23 @@ function App() {
       <MobileDisabled />
       <main className="app-shell">
       <section className="control-panel" aria-label="Import and chat list">
-        <div>
-          <p className="eyebrow">Local-only viewer</p>
-          <h1>Instagram Chat Backup Manager</h1>
+        <header className="brand-header">
+          <div className="brand-mark" aria-hidden="true">
+            <MessageCircleMore size={21} strokeWidth={1.8} />
+          </div>
+          <div className="brand-copy">
+            <span>Archive Studio</span>
+            <small>Instagram interpreter</small>
+          </div>
+          <Chip className="local-chip" color="success" size="sm" variant="soft">
+            <span className="status-dot" aria-hidden="true" /> Local
+          </Chip>
+        </header>
+
+        <div className="intro-copy">
+          <p className="eyebrow">Private by design</p>
+          <h1>Your conversations, made clear.</h1>
+          <p>Explore years of messages, media, and patterns without anything leaving your device.</p>
         </div>
 
         <input
@@ -147,12 +174,22 @@ function App() {
           disabled={isParsing}
           onChange={handleFileChange}
         />
-        <button className="file-drop" type="button" onClick={handleUploadClick} disabled={isParsing}>
+        <Button
+          className="file-drop"
+          variant="secondary"
+          onPress={handleUploadClick}
+          isDisabled={isParsing}
+          isPending={isParsing}
+        >
           <span className="file-icon" aria-hidden="true">
-            +
+            <Upload size={20} strokeWidth={1.8} />
           </span>
-          <span>{isParsing ? "Reading Instagram ZIP locally..." : "Choose Instagram export ZIP"}</span>
-        </button>
+          <span className="file-drop-copy">
+            <strong>{isParsing ? "Reading your archive…" : backup ? "Choose another archive" : "Choose Instagram export"}</strong>
+            <small>{isParsing ? "Everything stays on this device" : "ZIP archive · processed locally"}</small>
+          </span>
+          {!isParsing ? <span className="zip-tag">ZIP</span> : null}
+        </Button>
 
         {error ? <p className="error-message">{error}</p> : null}
 
@@ -164,15 +201,17 @@ function App() {
               <SummaryTile label="Files" value={backup.attachments.length.toLocaleString()} />
             </div>
 
-            <label className="field">
-              <span>Find chat</span>
-              <input
-                type="search"
-                placeholder="Search names or group titles"
-                value={threadQuery}
-                onChange={(event) => setThreadQuery(event.target.value)}
-              />
-            </label>
+            <div className="list-heading">
+              <span>Conversations</span>
+              <small>{visibleThreads.length.toLocaleString()}</small>
+            </div>
+
+            <SearchBox
+              ariaLabel="Find a conversation"
+              placeholder="Search conversations"
+              value={threadQuery}
+              onChange={setThreadQuery}
+            />
 
             <ThreadList
               threads={visibleThreads}
@@ -187,65 +226,69 @@ function App() {
             />
           </>
         ) : (
-          <div className="privacy-note">
-            <strong>Chat stays local.</strong>
-            <span>
-              The ZIP is read by your browser on this device, and imported messages and media are kept in memory only.
-            </span>
-          </div>
+          <Card className="privacy-note" variant="secondary">
+            <div className="privacy-icon" aria-hidden="true">
+              <ShieldCheck size={18} />
+            </div>
+            <div>
+              <strong>Your archive stays yours.</strong>
+              <span>The ZIP is read in this browser and held in memory only. Nothing is uploaded.</span>
+            </div>
+          </Card>
         )}
 
         <footer className="site-footer">
           <div className="footer-links">
-            <a href="privacy.html">Privacy Policy</a>
+            <a href="privacy.html"><LockKeyhole size={13} /> Privacy</a>
             <a href="https://github.com/marfeyx/instagraminterpreter.marfeyx.ch/issues">
-              Report issues
+              Support <ExternalLink size={12} />
             </a>
           </div>
         </footer>
       </section>
 
       <section className="phone-stage" aria-label="Instagram-style chat preview">
-        <div className="phone-frame">
+        <div className="stage-glow" aria-hidden="true" />
+        <div className={selectedThread ? "phone-frame has-thread" : "phone-frame"}>
           <div className="phone-status">
             <span className="status-time">{importedAt}</span>
             <span className="dynamic-island" aria-hidden="true" />
+            <span className="status-private"><LockKeyhole size={11} /> Private</span>
           </div>
 
           <div className="chat-header">
-            <button className="back-button" type="button" aria-label="Back">
-              <span>‹</span>
-            </button>
+            <span className="header-leading" aria-hidden="true"><MessageCircleMore size={17} /></span>
             <div className="contact-stack">
               <Avatar fallback={getInitials(getChatTitle(selectedThread, myName))} />
               <div className="chat-title">
                 <strong>{getChatTitle(selectedThread, myName)}</strong>
-                <span>{selectedThread ? `${selectedThread.messages.length.toLocaleString()} messages` : "Instagram preview"}</span>
+                <span>{selectedThread ? `${selectedThread.messages.length.toLocaleString()} messages` : "Archive preview"}</span>
               </div>
             </div>
-            <div className="header-actions" aria-hidden="true">
-              <span />
-              <span />
-            </div>
+            <span className="header-action" aria-hidden="true">
+              <MoreHorizontal size={19} />
+            </span>
           </div>
 
           {selectedThread ? (
             <div className="toolbar">
-              <label className="toolbar-search">
+              <SearchBox
+                ariaLabel="Search messages"
+                className="toolbar-search"
+                placeholder="Search messages"
+                value={query}
+                onChange={setQuery}
+              />
+              <div className="date-control">
+                <CalendarDays size={14} aria-hidden="true" />
                 <input
-                  type="search"
-                  placeholder="Search messages"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                />
-              </label>
-              <input
                 className="date-input"
                 type="date"
                 value={dateQuery}
                 onChange={(event) => setDateQuery(event.target.value)}
                 aria-label="Filter by date"
               />
+              </div>
             </div>
           ) : null}
 
@@ -255,10 +298,11 @@ function App() {
             ) : (
               <div className="empty-state">
                 <div className="empty-mark" aria-hidden="true">
-                  IG
+                  <Sparkles size={25} strokeWidth={1.6} />
                 </div>
-                <h2>Select an Instagram export ZIP</h2>
-                <p>All conversations will appear here in an Instagram-style message view.</p>
+                <Chip color="accent" size="sm" variant="soft">Ready when you are</Chip>
+                <h2>See the story inside your archive.</h2>
+                <p>Select an Instagram export to privately browse messages, media, and conversation insights.</p>
               </div>
             )}
           </div>
@@ -284,18 +328,49 @@ function App() {
 function MobileDisabled() {
   return (
     <main className="mobile-disabled" aria-label="Mobile disabled notice">
-      <div className="mobile-disabled-card">
+      <Card className="mobile-disabled-card" variant="secondary">
         <div className="mobile-disabled-mark" aria-hidden="true">
-          IG
+          <MessageCircleMore size={26} strokeWidth={1.7} />
         </div>
-        <p className="eyebrow">Desktop only</p>
-        <h1>Disabled on mobile due to performance problems</h1>
+        <p className="eyebrow">Desktop experience</p>
+        <h1>Open Archive Studio on a larger screen.</h1>
         <p>
-          Instagram exports can include thousands of messages, reactions, and media files. Open this page on a laptop
-          or desktop browser for the full local viewer.
+          Instagram archives can contain thousands of messages and media files. A laptop or desktop gives you the
+          performance and space needed for the full private viewer.
         </p>
-      </div>
+      </Card>
     </main>
+  );
+}
+
+function SearchBox({
+  ariaLabel,
+  className = "",
+  placeholder,
+  value,
+  onChange,
+}: {
+  ariaLabel: string;
+  className?: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <SearchField
+      aria-label={ariaLabel}
+      className={`search-control ${className}`.trim()}
+      fullWidth
+      value={value}
+      onChange={onChange}
+      variant="secondary"
+    >
+      <SearchField.Group>
+        <Search size={15} aria-hidden="true" />
+        <SearchField.Input placeholder={placeholder} />
+        <SearchField.ClearButton aria-label={`Clear ${ariaLabel.toLowerCase()}`} />
+      </SearchField.Group>
+    </SearchField>
   );
 }
 
@@ -315,19 +390,19 @@ function ThreadList({
         const last = thread.messages[thread.messages.length - 1];
         const title = getChatTitle(thread, myName);
         return (
-          <button
+          <Button
             key={thread.id}
             className={thread.id === selectedThreadId ? "thread-item active" : "thread-item"}
-            type="button"
-            onClick={() => onSelect(thread)}
+            variant="ghost"
+            onPress={() => onSelect(thread)}
           >
             <Avatar fallback={getInitials(title)} compact />
-            <span>
+            <span className="thread-copy">
               <strong>{title}</strong>
               <small>{last ? previewMessage(last) : "No messages"}</small>
             </span>
             <time>{formatShortDate(last?.timestamp ?? null)}</time>
-          </button>
+          </Button>
         );
       })}
     </div>
@@ -350,11 +425,12 @@ function DetailedStats({
 }) {
   if (!backup || !thread || !stats) {
     return (
-      <div className="details-empty">
-        <p className="eyebrow">Detailed stats</p>
-        <h2>Import a backup to see totals</h2>
-        <p>Chat counts, participant comparisons, media totals, shares, reactions, and date ranges will appear here.</p>
-      </div>
+      <Card className="details-empty" variant="secondary">
+        <div className="details-empty-icon" aria-hidden="true"><FileArchive size={22} /></div>
+        <p className="eyebrow">Conversation intelligence</p>
+        <h2>Insights, after import.</h2>
+        <p>Participant comparisons, word counts, media totals, reactions, and response times appear here.</p>
+      </Card>
     );
   }
 
@@ -368,22 +444,23 @@ function DetailedStats({
     <>
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Detailed stats</p>
+          <p className="eyebrow">Conversation intelligence</p>
           <h2>{thread.title}</h2>
         </div>
-        <span>{visibleCount.toLocaleString()} shown</span>
+        <Chip size="sm" variant="soft">{visibleCount.toLocaleString()} shown</Chip>
       </div>
 
       <div className="filter-row" aria-label="Message filters">
         {filters.map((item) => (
-          <button
+          <Button
             key={item.id}
-            type="button"
             className={filter === item.id ? "active" : ""}
-            onClick={() => setFilter(item.id)}
+            size="sm"
+            variant={filter === item.id ? "primary" : "ghost"}
+            onPress={() => setFilter(item.id)}
           >
             {item.label}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -395,16 +472,16 @@ function DetailedStats({
       </div>
 
       <div className="highlight-grid">
-        <div className="highlight-card">
+        <Card className="highlight-card" variant="secondary">
           <span>Most messages</span>
           <strong>{topSender?.name ?? "None"}</strong>
           <small>{topSender?.messages.toLocaleString() ?? "0"} messages</small>
-        </div>
-        <div className="highlight-card">
+        </Card>
+        <Card className="highlight-card" variant="secondary">
           <span>Most words</span>
           <strong>{topTalker?.name ?? "None"}</strong>
           <small>{topTalker?.words.toLocaleString() ?? "0"} words</small>
-        </div>
+        </Card>
       </div>
 
       <section className="stats-panel" aria-label="Participant statistics">
@@ -520,7 +597,7 @@ function AttachmentPreview({ attachment }: { attachment: Attachment }) {
 
   return (
     <a className="attachment-card" href={attachment.url} target="_blank" rel="noreferrer">
-      <span className="attachment-glyph">doc</span>
+      <span className="attachment-glyph"><FileText size={18} /></span>
       <span>
         <strong>{attachment.name}</strong>
         <small>{formatBytes(attachment.size)}</small>
@@ -531,18 +608,18 @@ function AttachmentPreview({ attachment }: { attachment: Attachment }) {
 
 function SummaryTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="summary-tile">
+    <Card className="summary-tile" variant="secondary">
       <strong>{value}</strong>
       <span>{label}</span>
-    </div>
+    </Card>
   );
 }
 
 function Avatar({ fallback, compact = false }: { fallback: string; compact?: boolean }) {
   return (
-    <span className={compact ? "avatar compact" : "avatar"} aria-hidden="true">
-      {fallback}
-    </span>
+    <HeroAvatar className={compact ? "avatar compact" : "avatar"} size={compact ? "md" : "sm"} variant="soft">
+      <HeroAvatar.Fallback>{fallback}</HeroAvatar.Fallback>
+    </HeroAvatar>
   );
 }
 
@@ -550,17 +627,21 @@ function StatMeter({ label, value, total }: { label: string; value: number; tota
   const percent = total > 0 ? Math.round((value / total) * 100) : 0;
 
   return (
-    <div className="stat-meter">
+    <Meter
+      aria-label={`${label}: ${value.toLocaleString()}`}
+      className="stat-meter"
+      maxValue={Math.max(total, 1)}
+      value={value}
+      size="sm"
+    >
       <div>
         <span>{label}</span>
         <strong>
           {value.toLocaleString()} · {percent}%
         </strong>
       </div>
-      <div className="meter-track" aria-hidden="true">
-        <span style={{ width: `${percent}%` }} />
-      </div>
-    </div>
+      <Meter.Track><Meter.Fill /></Meter.Track>
+    </Meter>
   );
 }
 

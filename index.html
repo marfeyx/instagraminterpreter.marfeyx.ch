@@ -1,9 +1,39 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Instagram Chat Backup Manager</title>
+    <meta name="theme-color" content="#07080b" />
+    <meta
+      name="description"
+      content="Explore your Instagram message archive privately, entirely in your browser."
+    />
+    <title>Archive Studio — Instagram Chat Viewer</title>
+    <script>
+      document.addEventListener("DOMContentLoaded", async () => {
+        const sourceEntry = document.querySelector('script[type="module"][src="/src/main.tsx"]');
+        const viteClient = document.querySelector('script[src$="/@vite/client"]');
+        if (!sourceEntry || viteClient) return;
+
+        const root = document.getElementById("root");
+        root.style.cssText = "padding:32px;color:#f4f4f5;background:#07080b;font:16px/1.6 system-ui;min-height:100vh";
+        root.textContent = "Opening the built preview…";
+        if (location.protocol === "file:") {
+          root.textContent = "To open Archive Studio, run npm run dev in the project folder, then open http://127.0.0.1:5173.";
+          return;
+        }
+
+        try {
+          const target = new URL("./dist/index.html", location.href);
+          const response = await fetch(target, { cache: "no-store" });
+          const html = await response.text();
+          if (!response.ok || !/assets\/[^\"']+\.js/.test(html)) throw new Error("Build missing");
+          location.replace(target.href + location.search + location.hash);
+        } catch {
+          root.textContent = "This preview needs a build. Run npm run build, then reload this page. For development, run npm run dev and open http://127.0.0.1:5173.";
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>

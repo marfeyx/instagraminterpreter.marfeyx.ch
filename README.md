@@ -104,6 +104,10 @@ http://127.0.0.1:5173
 
 This URL runs on your own computer.
 
+VS Code Live Server and other static previews open the compiled `dist/` app automatically.
+Run `npm run build` after editing source files to refresh that preview. For automatic updates while
+editing, use the Vite development URL above. Opening `index.html` directly from disk shows launch instructions.
+
 ## Production Build
 
 Create a production build:
